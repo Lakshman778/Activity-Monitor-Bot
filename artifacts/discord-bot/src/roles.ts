@@ -1,10 +1,4 @@
-import {
-  Guild,
-  GuildMember,
-  PermissionsBitField,
-  OverwriteType,
-  type TextChannel,
-} from "discord.js";
+import { Guild, GuildMember, PermissionsBitField, type TextChannel } from "discord.js";
 import { getGuildConfig } from "./config.js";
 
 export async function assignInactiveRole(member: GuildMember): Promise<void> {
@@ -13,7 +7,6 @@ export async function assignInactiveRole(member: GuildMember): Promise<void> {
 
   try {
     await member.roles.add(config.inactiveRoleId);
-    await removeGiveawayAccess(member, config.giveawayChannelIds);
   } catch (err) {
     console.error(`Failed to assign inactive role to ${member.user.tag}:`, err);
   }
@@ -25,7 +18,6 @@ export async function assignOnLeaveRole(member: GuildMember): Promise<void> {
 
   try {
     await member.roles.add(config.onLeaveRoleId);
-    await removeGiveawayAccess(member, config.giveawayChannelIds);
   } catch (err) {
     console.error(`Failed to assign on-leave role to ${member.user.tag}:`, err);
   }
@@ -41,37 +33,63 @@ export async function removeInactiveRoles(member: GuildMember): Promise<void> {
     if (config.onLeaveRoleId && member.roles.cache.has(config.onLeaveRoleId)) {
       await member.roles.remove(config.onLeaveRoleId);
     }
-    await restoreGiveawayAccess(member, config.giveawayChannelIds);
   } catch (err) {
     console.error(`Failed to remove inactive roles from ${member.user.tag}:`, err);
   }
 }
 
-async function removeGiveawayAccess(member: GuildMember, channelIds: string[]): Promise<void> {
-  for (const channelId of channelIds) {
-    try {
-      const channel = member.guild.channels.cache.get(channelId) as TextChannel | undefined;
-      if (!channel) continue;
-      await channel.permissionOverwrites.edit(member.user, {
-        ViewChannel: false,
-      });
-    } catch (err) {
-      console.error(`Failed to remove giveaway access for ${member.user.tag} in ${channelId}:`, err);
+export async function syncGiveawayChannelRestrictions(guild: Guild): Promise<{ success: boolean; errors: string[] }> {
+  const config = await getGuildConfig(guild.id);
+  const errors: string[] = [];
+
+  if (config.giveawayChannelIds.length === 0) {
+    return { success: true, errors: [] };
+  }
+
+  const roleIds = [config.inactiveRoleId, config.onLeaveRoleId].filter(Boolean) as string[];
+
+  if (roleIds.length === 0) {
+    return { success: false, errors: ["No inactive or on-leave roles configured. Use /setup inactive-role and /setup leave-role first."] };
+  }
+
+  for (const channelId of config.giveawayChannelIds) {
+    const channel = guild.channels.cache.get(channelId) as TextChannel | undefined;
+    if (!channel) {
+      errors.push(`Channel ${channelId} not found in cache.`);
+      continue;
+    }
+
+    for (const roleId of roleIds) {
+      try {
+        await channel.permissionOverwrites.edit(roleId, {
+          ViewChannel: false,
+        });
+      } catch (err) {
+        const msg = `Failed to set deny on role ${roleId} for channel ${channel.name}: ${err}`;
+        console.error(msg);
+        errors.push(msg);
+      }
     }
   }
+
+  return { success: errors.length === 0, errors };
 }
 
-async function restoreGiveawayAccess(member: GuildMember, channelIds: string[]): Promise<void> {
-  for (const channelId of channelIds) {
+export async function removeGiveawayChannelRestriction(guild: Guild, channelId: string): Promise<void> {
+  const config = await getGuildConfig(guild.id);
+  const channel = guild.channels.cache.get(channelId) as TextChannel | undefined;
+  if (!channel) return;
+
+  const roleIds = [config.inactiveRoleId, config.onLeaveRoleId].filter(Boolean) as string[];
+
+  for (const roleId of roleIds) {
     try {
-      const channel = member.guild.channels.cache.get(channelId) as TextChannel | undefined;
-      if (!channel) continue;
-      const overwrite = channel.permissionOverwrites.cache.get(member.id);
+      const overwrite = channel.permissionOverwrites.cache.get(roleId);
       if (overwrite) {
         await overwrite.delete();
       }
     } catch (err) {
-      console.error(`Failed to restore giveaway access for ${member.user.tag} in ${channelId}:`, err);
+      console.error(`Failed to remove overwrite for role ${roleId} on channel ${channel.name}:`, err);
     }
   }
 }

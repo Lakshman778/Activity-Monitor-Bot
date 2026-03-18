@@ -5,6 +5,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { updateGuildConfig, getGuildConfig } from "../config.js";
+import { syncGiveawayChannelRestrictions, removeGiveawayChannelRestriction } from "../roles.js";
 
 export const data = new SlashCommandBuilder()
   .setName("setup")
@@ -135,12 +136,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   } else if (sub === "inactive-role") {
     const role = interaction.options.getRole("role", true);
     await updateGuildConfig(guildId, { inactiveRoleId: role.id });
-    await interaction.reply({ content: `✅ Inactive role set to <@&${role.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `✅ Inactive role set to <@&${role.id}>. Syncing giveaway channel restrictions...`, ephemeral: true });
+    if (interaction.guild) {
+      const result = await syncGiveawayChannelRestrictions(interaction.guild);
+      if (!result.success && result.errors.length > 0) {
+        await interaction.followUp({ content: `⚠️ Some channel restrictions could not be applied:\n${result.errors.join("\n")}`, ephemeral: true });
+      }
+    }
 
   } else if (sub === "leave-role") {
     const role = interaction.options.getRole("role", true);
     await updateGuildConfig(guildId, { onLeaveRoleId: role.id });
-    await interaction.reply({ content: `✅ On Leave role set to <@&${role.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `✅ On Leave role set to <@&${role.id}>. Syncing giveaway channel restrictions...`, ephemeral: true });
+    if (interaction.guild) {
+      const result = await syncGiveawayChannelRestrictions(interaction.guild);
+      if (!result.success && result.errors.length > 0) {
+        await interaction.followUp({ content: `⚠️ Some channel restrictions could not be applied:\n${result.errors.join("\n")}`, ephemeral: true });
+      }
+    }
 
   } else if (sub === "add-giveaway-channel") {
     const channel = interaction.options.getChannel("channel", true);
@@ -149,13 +162,27 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (!existing.includes(channel.id)) {
       await updateGuildConfig(guildId, { giveawayChannelIds: [...existing, channel.id] });
     }
-    await interaction.reply({ content: `✅ <#${channel.id}> added as a giveaway channel. Inactive users will lose access.`, ephemeral: true });
+    await interaction.reply({ content: `✅ <#${channel.id}> added as a giveaway channel. Applying role restrictions...`, ephemeral: true });
+    if (interaction.guild) {
+      const result = await syncGiveawayChannelRestrictions(interaction.guild);
+      if (result.success) {
+        await interaction.followUp({ content: `🔒 Inactive and On Leave roles are now denied access to <#${channel.id}>.`, ephemeral: true });
+      } else {
+        await interaction.followUp({
+          content: `⚠️ Could not fully apply restrictions. Make sure the bot has **Manage Channels** permission and roles are configured.\n${result.errors.join("\n")}`,
+          ephemeral: true,
+        });
+      }
+    }
 
   } else if (sub === "remove-giveaway-channel") {
     const channel = interaction.options.getChannel("channel", true);
     const config = await getGuildConfig(guildId);
     const updated = (config.giveawayChannelIds ?? []).filter((id) => id !== channel.id);
     await updateGuildConfig(guildId, { giveawayChannelIds: updated });
-    await interaction.reply({ content: `✅ <#${channel.id}> removed from giveaway channels.`, ephemeral: true });
+    if (interaction.guild) {
+      await removeGiveawayChannelRestriction(interaction.guild, channel.id);
+    }
+    await interaction.reply({ content: `✅ <#${channel.id}> removed from giveaway channels. Role restrictions cleared.`, ephemeral: true });
   }
 }
