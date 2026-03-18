@@ -75,6 +75,27 @@ export async function syncGiveawayChannelRestrictions(guild: Guild): Promise<{ s
   return { success: errors.length === 0, errors };
 }
 
+export async function liftGiveawayRestrictions(guild: Guild): Promise<{ success: boolean; errors: string[] }> {
+  const config = await getGuildConfig(guild.id);
+  const errors: string[] = [];
+  const roleIds = [config.inactiveRoleId, config.onLeaveRoleId].filter(Boolean) as string[];
+
+  for (const channelId of config.giveawayChannelIds) {
+    const channel = guild.channels.cache.get(channelId) as TextChannel | undefined;
+    if (!channel) continue;
+    for (const roleId of roleIds) {
+      try {
+        const overwrite = channel.permissionOverwrites.cache.get(roleId);
+        if (overwrite) await overwrite.delete();
+      } catch (err) {
+        errors.push(`Failed to lift restriction on ${channel.name}: ${err}`);
+      }
+    }
+  }
+
+  return { success: errors.length === 0, errors };
+}
+
 export async function removeGiveawayChannelRestriction(guild: Guild, channelId: string): Promise<void> {
   const config = await getGuildConfig(guild.id);
   const channel = guild.channels.cache.get(channelId) as TextChannel | undefined;

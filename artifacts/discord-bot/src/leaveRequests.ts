@@ -140,6 +140,20 @@ export async function revokeLeaveRequest(
   return updated ?? null;
 }
 
+export async function getAllActiveLeaves(guildId: string): Promise<LeaveRequest[]> {
+  const now = new Date();
+  const results = await db
+    .select()
+    .from(leaveRequestTable)
+    .where(
+      and(
+        eq(leaveRequestTable.guildId, guildId),
+        eq(leaveRequestTable.status, "approved")
+      )
+    );
+  return results.filter((r) => r.endDate && r.endDate > now);
+}
+
 export async function cancelLeaveRequest(
   requestId: number,
   userId: string

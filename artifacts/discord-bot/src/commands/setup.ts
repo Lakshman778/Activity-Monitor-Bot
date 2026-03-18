@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { updateGuildConfig, getGuildConfig } from "../config.js";
-import { syncGiveawayChannelRestrictions, removeGiveawayChannelRestriction } from "../roles.js";
+import { syncGiveawayChannelRestrictions, removeGiveawayChannelRestriction, liftGiveawayRestrictions } from "../roles.js";
 
 export const data = new SlashCommandBuilder()
   .setName("setup")
@@ -77,6 +77,21 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName("view").setDescription("View the current configuration")
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("giveaway-mode")
+      .setDescription("Toggle giveaway mode — lifts leave/inactive restrictions so everyone can join")
+      .addStringOption((opt) =>
+        opt
+          .setName("mode")
+          .setDescription("Turn giveaway mode on or off")
+          .setRequired(true)
+          .addChoices(
+            { name: "on — lift restrictions (giveaway starting)", value: "on" },
+            { name: "off — restore restrictions (giveaway ended)", value: "off" }
+          )
+      )
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -184,5 +199,40 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await removeGiveawayChannelRestriction(interaction.guild, channel.id);
     }
     await interaction.reply({ content: `✅ <#${channel.id}> removed from giveaway channels. Role restrictions cleared.`, ephemeral: true });
+
+  } else if (sub === "giveaway-mode") {
+    const mode = interaction.options.getString("mode", true);
+    if (!interaction.guild) return;
+
+    await interaction.deferReply({ ephemeral: true });
+
+    if (mode === "on") {
+      await updateGuildConfig(guildId, { giveawayModeActive: true });
+      const result = await liftGiveawayRestrictions(interaction.guild);
+
+      if (result.success) {
+        await interaction.editReply({
+          content: `🎉 **Giveaway mode ON** — All restrictions on giveaway channels have been lifted. Members on leave or marked inactive can now see and join the giveaway.\n\nRun \`/setup giveaway-mode off\` when the giveaway ends to restore restrictions.`,
+        });
+      } else {
+        await interaction.editReply({
+          content: `⚠️ Giveaway mode enabled but some restrictions could not be lifted:\n${result.errors.join("\n")}`,
+        });
+      }
+
+    } else {
+      await updateGuildConfig(guildId, { giveawayModeActive: false });
+      const result = await syncGiveawayChannelRestrictions(interaction.guild);
+
+      if (result.success) {
+        await interaction.editReply({
+          content: `🔒 **Giveaway mode OFF** — Restrictions have been restored. Inactive members and members on leave can no longer see giveaway channels.`,
+        });
+      } else {
+        await interaction.editReply({
+          content: `⚠️ Giveaway mode disabled but some restrictions could not be restored:\n${result.errors.join("\n")}`,
+        });
+      }
+    }
   }
 }

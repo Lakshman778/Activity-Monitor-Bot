@@ -11,6 +11,7 @@ import {
   revokeLeaveRequest,
   getPendingRequests,
   getLeaveRequestById,
+  getAllActiveLeaves,
 } from "../leaveRequests.js";
 import { getGuildConfig } from "../config.js";
 import { assignOnLeaveRole, removeInactiveRoles } from "../roles.js";
@@ -46,6 +47,9 @@ export const data = new SlashCommandBuilder()
       .addIntegerOption((opt) =>
         opt.setName("id").setDescription("Leave request ID").setRequired(true)
       )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("leavelist").setDescription("List all members currently on approved leave")
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -233,5 +237,29 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     } catch {
       // DMs may be closed
     }
+
+  } else if (sub === "leavelist") {
+    await interaction.deferReply({ ephemeral: true });
+
+    const activeLeaves = await getAllActiveLeaves(guildId);
+
+    if (activeLeaves.length === 0) {
+      await interaction.editReply({ content: "✅ No members are currently on approved leave." });
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`🏖️ Members Currently On Leave (${activeLeaves.length})`)
+      .setTimestamp();
+
+    const lines = activeLeaves.map((r) => {
+      const endTs = r.endDate ? `<t:${Math.floor(r.endDate.getTime() / 1000)}:R>` : "Unknown";
+      return `<@${r.userId}> — expires ${endTs} — *${r.reason}* (Request #${r.id})`;
+    });
+
+    embed.setDescription(lines.join("\n"));
+
+    await interaction.editReply({ embeds: [embed] });
   }
 }

@@ -12,6 +12,7 @@ export const guildConfigTable = pgTable("guild_config", {
   inactiveRoleId: text("inactive_role_id"),
   onLeaveRoleId: text("on_leave_role_id"),
   giveawayChannelIds: text("giveaway_channel_ids").array().notNull().default([]),
+  giveawayModeActive: boolean("giveaway_mode_active").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
