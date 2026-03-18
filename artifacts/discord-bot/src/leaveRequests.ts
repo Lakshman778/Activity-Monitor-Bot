@@ -121,3 +121,42 @@ export async function getLeaveRequestById(id: number): Promise<LeaveRequest | nu
 
   return result[0] ?? null;
 }
+
+export async function revokeLeaveRequest(
+  requestId: number,
+  revokedBy: string
+): Promise<LeaveRequest | null> {
+  const [updated] = await db
+    .update(leaveRequestTable)
+    .set({
+      status: "revoked",
+      reviewedBy: revokedBy,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(leaveRequestTable.id, requestId))
+    .returning();
+
+  return updated ?? null;
+}
+
+export async function cancelLeaveRequest(
+  requestId: number,
+  userId: string
+): Promise<LeaveRequest | null> {
+  const [updated] = await db
+    .update(leaveRequestTable)
+    .set({
+      status: "cancelled",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(leaveRequestTable.id, requestId),
+        eq(leaveRequestTable.userId, userId)
+      )
+    )
+    .returning();
+
+  return updated ?? null;
+}

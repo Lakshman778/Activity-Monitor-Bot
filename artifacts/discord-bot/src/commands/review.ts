@@ -8,6 +8,7 @@ import {
 import {
   approveLeaveRequest,
   rejectLeaveRequest,
+  revokeLeaveRequest,
   getPendingRequests,
   getLeaveRequestById,
 } from "../leaveRequests.js";
@@ -20,9 +21,7 @@ export const data = new SlashCommandBuilder()
   .setDescription("Review leave requests (staff only)")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand((sub) =>
-    sub
-      .setName("list")
-      .setDescription("List all pending leave requests")
+    sub.setName("list").setDescription("List all pending leave requests")
   )
   .addSubcommand((sub) =>
     sub
@@ -36,6 +35,14 @@ export const data = new SlashCommandBuilder()
     sub
       .setName("reject")
       .setDescription("Reject a leave request")
+      .addIntegerOption((opt) =>
+        opt.setName("id").setDescription("Leave request ID").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("revoke")
+      .setDescription("Revoke an approved leave — removes exemption and resumes inactivity tracking")
       .addIntegerOption((opt) =>
         opt.setName("id").setDescription("Leave request ID").setRequired(true)
       )
@@ -166,6 +173,60 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             .setColor(0xef4444)
             .setTitle("❌ Leave Request Rejected")
             .setDescription(`Your leave request (#${id}) has been **rejected**. You will continue to be monitored for activity. Please become active in the server.`)
+            .setTimestamp()
+        ]
+      });
+    } catch {
+      // DMs may be closed
+    }
+
+  } else if (sub === "revoke") {
+    const id = interaction.options.getInteger("id", true);
+    const request = await getLeaveRequestById(id);
+
+    if (!request || request.guildId !== guildId) {
+      await interaction.reply({ content: `❌ Leave request #${id} not found.`, ephemeral: true });
+      return;
+    }
+
+    if (request.status !== "approved") {
+      await interaction.reply({
+        content: `❌ Request #${id} is **${request.status}** — only approved leaves can be revoked.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await revokeLeaveRequest(id, interaction.user.id);
+
+    const member = interaction.guild.members.cache.get(request.userId)
+      ?? await interaction.guild.members.fetch(request.userId).catch(() => null);
+
+    if (member) {
+      await removeInactiveRoles(member);
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xf97316)
+      .setTitle("🚫 Leave Revoked")
+      .setDescription(`The approved leave for <@${request.userId}> has been revoked. Inactivity tracking resumes immediately.`)
+      .addFields(
+        { name: "Request ID", value: `#${id}`, inline: true },
+        { name: "User", value: `<@${request.userId}>`, inline: true },
+        { name: "Revoked by", value: `<@${interaction.user.id}>`, inline: true }
+      )
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+
+    try {
+      const user = await interaction.client.users.fetch(request.userId);
+      await user.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xf97316)
+            .setTitle("🚫 Your Leave Has Been Revoked")
+            .setDescription(`Your approved leave (request #${id}) has been **revoked by staff**. You are now being tracked for activity again. Please make sure to stay active in the server.`)
             .setTimestamp()
         ]
       });
