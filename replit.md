@@ -50,6 +50,29 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ## Packages
 
+### `artifacts/discord-bot` (`@workspace/discord-bot`)
+
+Discord activity tracking bot. Monitors member inactivity, manages leave requests, and restricts giveaway access for inactive members.
+
+- Entry: `src/index.ts` — starts Discord client, registers slash commands, starts scheduler
+- `src/activity.ts` — records and queries member activity from DB
+- `src/leaveRequests.ts` — CRUD for leave requests
+- `src/config.ts` — per-guild configuration with caching
+- `src/roles.ts` — assigns/removes Inactive and On Leave roles, controls giveaway channel access
+- `src/scheduler.ts` — hourly inactivity check loop
+- `src/commands/` — slash command handlers: `/setup`, `/leaverequest`, `/review`, `/inactive`, `/mystatus`
+- Requires: `DISCORD_BOT_TOKEN` secret
+- Run: `pnpm --filter @workspace/discord-bot run dev`
+
+**Slash commands:**
+- `/setup` — Admin: configure all bot settings (thresholds, channels, roles, giveaway channels)
+- `/leaverequest` — Any member: submit a leave/inactivity request
+- `/review` — Staff: list, approve, or reject leave requests
+- `/inactive list` — Staff: view all inactive members
+- `/mystatus` — Any member: view own activity and leave status
+
+**Privileged intents NOT required** — bot uses standard `Guilds` + `GuildMessages` intents only.
+
 ### `artifacts/api-server` (`@workspace/api-server`)
 
 Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.

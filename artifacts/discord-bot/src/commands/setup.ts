@@ -1,0 +1,161 @@
+import {
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+  PermissionFlagsBits,
+  EmbedBuilder,
+} from "discord.js";
+import { updateGuildConfig, getGuildConfig } from "../config.js";
+
+export const data = new SlashCommandBuilder()
+  .setName("setup")
+  .setDescription("Configure the inactivity bot for this server")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  .addSubcommand((sub) =>
+    sub
+      .setName("inactivity-days")
+      .setDescription("Days of inactivity before a warning is sent")
+      .addIntegerOption((opt) =>
+        opt.setName("days").setDescription("Number of days").setRequired(true).setMinValue(1).setMaxValue(365)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("kick-threshold")
+      .setDescription("Days of inactivity before staff is alerted for possible action")
+      .addIntegerOption((opt) =>
+        opt.setName("days").setDescription("Number of days").setRequired(true).setMinValue(1).setMaxValue(365)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("warning-channel")
+      .setDescription("Channel where inactivity warnings are sent to users")
+      .addChannelOption((opt) =>
+        opt.setName("channel").setDescription("The channel").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("staff-channel")
+      .setDescription("Staff-only channel for extended inactivity alerts")
+      .addChannelOption((opt) =>
+        opt.setName("channel").setDescription("The channel").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("inactive-role")
+      .setDescription("Role assigned to inactive members")
+      .addRoleOption((opt) =>
+        opt.setName("role").setDescription("The role").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("leave-role")
+      .setDescription("Role assigned to members on approved leave")
+      .addRoleOption((opt) =>
+        opt.setName("role").setDescription("The role").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("add-giveaway-channel")
+      .setDescription("Add a giveaway channel to be restricted for inactive users")
+      .addChannelOption((opt) =>
+        opt.setName("channel").setDescription("The giveaway channel").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("remove-giveaway-channel")
+      .setDescription("Remove a giveaway channel restriction")
+      .addChannelOption((opt) =>
+        opt.setName("channel").setDescription("The giveaway channel").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("view").setDescription("View the current configuration")
+  );
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.guildId) {
+    await interaction.reply({ content: "This command can only be used in a server.", ephemeral: true });
+    return;
+  }
+
+  const sub = interaction.options.getSubcommand();
+  const guildId = interaction.guildId;
+
+  if (sub === "view") {
+    const config = await getGuildConfig(guildId);
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle("⚙️ Bot Configuration")
+      .addFields(
+        { name: "Inactivity Warning After", value: `${config.inactivityDays} day(s)`, inline: true },
+        { name: "Staff Alert After", value: `${config.kickThresholdDays} day(s)`, inline: true },
+        { name: "Warning Channel", value: config.warningChannelId ? `<#${config.warningChannelId}>` : "Not set", inline: true },
+        { name: "Staff Channel", value: config.staffChannelId ? `<#${config.staffChannelId}>` : "Not set", inline: true },
+        { name: "Inactive Role", value: config.inactiveRoleId ? `<@&${config.inactiveRoleId}>` : "Not set", inline: true },
+        { name: "On Leave Role", value: config.onLeaveRoleId ? `<@&${config.onLeaveRoleId}>` : "Not set", inline: true },
+        {
+          name: "Giveaway Channels",
+          value: config.giveawayChannelIds.length > 0
+            ? config.giveawayChannelIds.map((id) => `<#${id}>`).join(", ")
+            : "None",
+        }
+      )
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+    return;
+  }
+
+  if (sub === "inactivity-days") {
+    const days = interaction.options.getInteger("days", true);
+    await updateGuildConfig(guildId, { inactivityDays: days });
+    await interaction.reply({ content: `✅ Inactivity warning threshold set to **${days}** day(s).`, ephemeral: true });
+
+  } else if (sub === "kick-threshold") {
+    const days = interaction.options.getInteger("days", true);
+    await updateGuildConfig(guildId, { kickThresholdDays: days });
+    await interaction.reply({ content: `✅ Staff alert threshold set to **${days}** day(s).`, ephemeral: true });
+
+  } else if (sub === "warning-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    await updateGuildConfig(guildId, { warningChannelId: channel.id });
+    await interaction.reply({ content: `✅ Warning channel set to <#${channel.id}>.`, ephemeral: true });
+
+  } else if (sub === "staff-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    await updateGuildConfig(guildId, { staffChannelId: channel.id });
+    await interaction.reply({ content: `✅ Staff channel set to <#${channel.id}>.`, ephemeral: true });
+
+  } else if (sub === "inactive-role") {
+    const role = interaction.options.getRole("role", true);
+    await updateGuildConfig(guildId, { inactiveRoleId: role.id });
+    await interaction.reply({ content: `✅ Inactive role set to <@&${role.id}>.`, ephemeral: true });
+
+  } else if (sub === "leave-role") {
+    const role = interaction.options.getRole("role", true);
+    await updateGuildConfig(guildId, { onLeaveRoleId: role.id });
+    await interaction.reply({ content: `✅ On Leave role set to <@&${role.id}>.`, ephemeral: true });
+
+  } else if (sub === "add-giveaway-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    const config = await getGuildConfig(guildId);
+    const existing = config.giveawayChannelIds ?? [];
+    if (!existing.includes(channel.id)) {
+      await updateGuildConfig(guildId, { giveawayChannelIds: [...existing, channel.id] });
+    }
+    await interaction.reply({ content: `✅ <#${channel.id}> added as a giveaway channel. Inactive users will lose access.`, ephemeral: true });
+
+  } else if (sub === "remove-giveaway-channel") {
+    const channel = interaction.options.getChannel("channel", true);
+    const config = await getGuildConfig(guildId);
+    const updated = (config.giveawayChannelIds ?? []).filter((id) => id !== channel.id);
+    await updateGuildConfig(guildId, { giveawayChannelIds: updated });
+    await interaction.reply({ content: `✅ <#${channel.id}> removed from giveaway channels.`, ephemeral: true });
+  }
+}
