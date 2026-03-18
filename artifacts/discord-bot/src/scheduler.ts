@@ -4,16 +4,15 @@ import {
   getAllGuildActivity,
   markWarningSent,
   markStaffAlertSent,
-  recordActivity,
 } from "./activity.js";
 import { getActiveLeaveForUser } from "./leaveRequests.js";
 import { assignInactiveRole, removeInactiveRoles } from "./roles.js";
 
-const INTERVAL_MS = 60 * 60 * 1000;
+const INTERVAL_MS = 60 * 1000;
 
 export function startScheduler(client: Client): void {
   setInterval(() => runInactivityCheck(client), INTERVAL_MS);
-  console.log("Inactivity scheduler started (runs every hour).");
+  console.log("Inactivity scheduler started (runs every minute).");
 }
 
 export async function runInactivityCheck(client: Client): Promise<void> {
@@ -31,29 +30,26 @@ export async function runInactivityCheck(client: Client): Promise<void> {
         if (!member || member.user.bot) continue;
 
         const activeLease = await getActiveLeaveForUser(guildId, activity.userId);
-
-        if (activeLease) {
-          continue;
-        }
+        if (activeLease) continue;
 
         const lastMessageMs = activity.lastMessageAt.getTime();
-        const daysSinceActivity = (now.getTime() - lastMessageMs) / (1000 * 60 * 60 * 24);
+        const minutesSinceActivity = (now.getTime() - lastMessageMs) / (1000 * 60);
 
-        if (daysSinceActivity < config.inactivityDays) {
+        if (minutesSinceActivity < config.inactivityDays) {
           if (activity.isInactive) {
             await removeInactiveRoles(member);
           }
           continue;
         }
 
-        if (daysSinceActivity >= config.inactivityDays && !activity.warningSentAt) {
-          await sendInactivityWarning(client, config, guildId, activity.userId, Math.floor(daysSinceActivity));
+        if (minutesSinceActivity >= config.inactivityDays && !activity.warningSentAt) {
+          await sendInactivityWarning(client, config, guildId, activity.userId, Math.floor(minutesSinceActivity));
           await markWarningSent(guildId, activity.userId);
           await assignInactiveRole(member);
         }
 
-        if (daysSinceActivity >= config.kickThresholdDays && !activity.staffAlertSentAt) {
-          await sendStaffAlert(client, config, guildId, activity.userId, Math.floor(daysSinceActivity));
+        if (minutesSinceActivity >= config.kickThresholdDays && !activity.staffAlertSentAt) {
+          await sendStaffAlert(client, config, guildId, activity.userId, Math.floor(minutesSinceActivity));
           await markStaffAlertSent(guildId, activity.userId);
         }
       }
@@ -68,7 +64,7 @@ async function sendInactivityWarning(
   config: Awaited<ReturnType<typeof getGuildConfig>>,
   guildId: string,
   userId: string,
-  daysSince: number
+  minutesSince: number
 ): Promise<void> {
   if (!config.warningChannelId) return;
 
@@ -80,7 +76,7 @@ async function sendInactivityWarning(
       .setColor(0xf59e0b)
       .setTitle("⚠️ Inactivity Warning")
       .setDescription(
-        `<@${userId}>, you have been inactive for **${daysSince} day(s)**.\n\n` +
+        `<@${userId}>, you have been inactive for **${minutesSince} minute(s)**.\n\n` +
         `Please become active again or submit a leave request with \`/leaverequest\` to explain your absence.\n\n` +
         `If no action is taken, staff may be notified.`
       )
@@ -97,7 +93,7 @@ async function sendStaffAlert(
   config: Awaited<ReturnType<typeof getGuildConfig>>,
   guildId: string,
   userId: string,
-  daysSince: number
+  minutesSince: number
 ): Promise<void> {
   if (!config.staffChannelId) return;
 
@@ -109,7 +105,7 @@ async function sendStaffAlert(
       .setColor(0xef4444)
       .setTitle("🚨 Extended Inactivity Alert")
       .setDescription(
-        `<@${userId}> has been inactive for **${daysSince} day(s)** (threshold: ${config.kickThresholdDays} days).\n\n` +
+        `<@${userId}> has been inactive for **${minutesSince} minute(s)** (threshold: ${config.kickThresholdDays} minutes).\n\n` +
         `Please review and decide if further action is required.`
       )
       .setFooter({ text: "The bot will NOT auto-kick. All moderation decisions are yours." })

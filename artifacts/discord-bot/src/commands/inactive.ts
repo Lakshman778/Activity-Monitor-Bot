@@ -30,7 +30,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const inactiveUsers: { userId: string; daysSince: number; onLeave: boolean; warned: boolean; alerted: boolean }[] = [];
 
   for (const activity of activities) {
-    const daysSince = (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60 * 60 * 24);
+    const daysSince = (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60);
     if (daysSince < 1) continue;
 
     const activeLease = await getActiveLeaveForUser(guildId, activity.userId);
@@ -62,7 +62,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (u.alerted) tags.push("🚨 Staff Alerted");
     else if (u.warned) tags.push("⚠️ Warned");
     const tagStr = tags.length > 0 ? ` — ${tags.join(", ")}` : "";
-    return `<@${u.userId}> — **${u.daysSince}d inactive**${tagStr}`;
+    return `<@${u.userId}> — **${u.daysSince}min inactive**${tagStr}`;
   });
 
   embed.setDescription(lines.join("\n"));

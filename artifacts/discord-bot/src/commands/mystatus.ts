@@ -35,7 +35,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   } else {
     const now = new Date();
     const daysSince = Math.floor(
-      (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60)
     );
 
     let statusLine = "✅ Active";
@@ -49,8 +49,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     embed.addFields(
       { name: "Status", value: statusLine },
       { name: "Last Activity", value: `<t:${Math.floor(activity.lastMessageAt.getTime() / 1000)}:R>`, inline: true },
-      { name: "Days Since Active", value: `${daysSince} day(s)`, inline: true },
-      { name: "Warning Threshold", value: `${config.inactivityDays} day(s)`, inline: true },
+      { name: "Minutes Since Active", value: `${daysSince} minute(s)`, inline: true },
+      { name: "Warning Threshold", value: `${config.inactivityDays} minute(s)`, inline: true },
     );
   }
 

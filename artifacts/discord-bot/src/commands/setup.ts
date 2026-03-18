@@ -12,18 +12,18 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
-      .setName("inactivity-days")
-      .setDescription("Days of inactivity before a warning is sent")
+      .setName("inactivity-minutes")
+      .setDescription("Minutes of inactivity before a warning is sent to the user")
       .addIntegerOption((opt) =>
-        opt.setName("days").setDescription("Number of days").setRequired(true).setMinValue(1).setMaxValue(365)
+        opt.setName("minutes").setDescription("Number of minutes").setRequired(true).setMinValue(1).setMaxValue(525600)
       )
   )
   .addSubcommand((sub) =>
     sub
       .setName("kick-threshold")
-      .setDescription("Days of inactivity before staff is alerted for possible action")
+      .setDescription("Minutes of inactivity before staff is alerted for possible action")
       .addIntegerOption((opt) =>
-        opt.setName("days").setDescription("Number of days").setRequired(true).setMinValue(1).setMaxValue(365)
+        opt.setName("minutes").setDescription("Number of minutes").setRequired(true).setMinValue(1).setMaxValue(525600)
       )
   )
   .addSubcommand((sub) =>
@@ -93,8 +93,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setColor(0x5865f2)
       .setTitle("⚙️ Bot Configuration")
       .addFields(
-        { name: "Inactivity Warning After", value: `${config.inactivityDays} day(s)`, inline: true },
-        { name: "Staff Alert After", value: `${config.kickThresholdDays} day(s)`, inline: true },
+        { name: "Inactivity Warning After", value: `${config.inactivityDays} minute(s)`, inline: true },
+        { name: "Staff Alert After", value: `${config.kickThresholdDays} minute(s)`, inline: true },
         { name: "Warning Channel", value: config.warningChannelId ? `<#${config.warningChannelId}>` : "Not set", inline: true },
         { name: "Staff Channel", value: config.staffChannelId ? `<#${config.staffChannelId}>` : "Not set", inline: true },
         { name: "Inactive Role", value: config.inactiveRoleId ? `<@&${config.inactiveRoleId}>` : "Not set", inline: true },
@@ -112,15 +112,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  if (sub === "inactivity-days") {
-    const days = interaction.options.getInteger("days", true);
-    await updateGuildConfig(guildId, { inactivityDays: days });
-    await interaction.reply({ content: `✅ Inactivity warning threshold set to **${days}** day(s).`, ephemeral: true });
+  if (sub === "inactivity-minutes") {
+    const minutes = interaction.options.getInteger("minutes", true);
+    await updateGuildConfig(guildId, { inactivityDays: minutes });
+    await interaction.reply({ content: `✅ Inactivity warning threshold set to **${minutes}** minute(s).`, ephemeral: true });
 
   } else if (sub === "kick-threshold") {
-    const days = interaction.options.getInteger("days", true);
-    await updateGuildConfig(guildId, { kickThresholdDays: days });
-    await interaction.reply({ content: `✅ Staff alert threshold set to **${days}** day(s).`, ephemeral: true });
+    const minutes = interaction.options.getInteger("minutes", true);
+    await updateGuildConfig(guildId, { kickThresholdDays: minutes });
+    await interaction.reply({ content: `✅ Staff alert threshold set to **${minutes}** minute(s).`, ephemeral: true });
 
   } else if (sub === "warning-channel") {
     const channel = interaction.options.getChannel("channel", true);
