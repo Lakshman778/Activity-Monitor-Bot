@@ -154,6 +154,33 @@ export async function getAllActiveLeaves(guildId: string): Promise<LeaveRequest[
   return results.filter((r) => r.endDate && r.endDate > now);
 }
 
+export async function createAndApproveLoa(
+  guildId: string,
+  userId: string,
+  reason: string,
+  durationDays: number
+): Promise<LeaveRequest> {
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + durationDays);
+
+  const [request] = await db
+    .insert(leaveRequestTable)
+    .values({
+      guildId,
+      userId,
+      reason,
+      durationDays,
+      status: "approved",
+      reviewedBy: "self",
+      reviewedAt: new Date(),
+      startDate: new Date(),
+      endDate,
+    })
+    .returning();
+
+  return request;
+}
+
 export async function cancelLeaveRequest(
   requestId: number,
   userId: string

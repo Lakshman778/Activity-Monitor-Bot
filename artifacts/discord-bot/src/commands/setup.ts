@@ -150,6 +150,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   } else if (sub === "inactive-role") {
     const role = interaction.options.getRole("role", true);
+    if (role.id === guildId) {
+      await interaction.reply({ content: "❌ You cannot use **@everyone** as the Inactive role. Please create a dedicated role (e.g. **Inactive**) and select that.", ephemeral: true });
+      return;
+    }
     await updateGuildConfig(guildId, { inactiveRoleId: role.id });
     await interaction.reply({ content: `✅ Inactive role set to <@&${role.id}>. Syncing giveaway channel restrictions...`, ephemeral: true });
     if (interaction.guild) {
@@ -161,6 +165,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   } else if (sub === "leave-role") {
     const role = interaction.options.getRole("role", true);
+    if (role.id === guildId) {
+      await interaction.reply({ content: "❌ You cannot use **@everyone** as the On Leave role. Please create a dedicated role (e.g. **On Leave**) and select that.", ephemeral: true });
+      return;
+    }
     await updateGuildConfig(guildId, { onLeaveRoleId: role.id });
     await interaction.reply({ content: `✅ On Leave role set to <@&${role.id}>. Syncing giveaway channel restrictions...`, ephemeral: true });
     if (interaction.guild) {

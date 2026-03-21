@@ -15,6 +15,8 @@ import * as review from "./commands/review.js";
 import * as inactive from "./commands/inactive.js";
 import * as mystatus from "./commands/mystatus.js";
 import * as settings from "./commands/settings.js";
+import * as loa from "./commands/loa.js";
+import * as checkwinner from "./commands/checkwinner.js";
 
 const token = process.env.DISCORD_BOT_TOKEN;
 if (!token) throw new Error("DISCORD_BOT_TOKEN is required.");
@@ -33,7 +35,7 @@ type Command = {
 
 const commands = new Collection<string, Command>();
 
-for (const cmd of [setup, leaverequest, review, inactive, mystatus, settings]) {
+for (const cmd of [setup, leaverequest, review, inactive, mystatus, settings, loa, checkwinner]) {
   commands.set(cmd.data.name, cmd as Command);
 }
 

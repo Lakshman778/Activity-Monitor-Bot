@@ -5,14 +5,15 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { getAllGuildActivity } from "../activity.js";
-import { getActiveLeaveForUser } from "../leaveRequests.js";
+import { getAllActiveLeaves, getActiveLeaveForUser } from "../leaveRequests.js";
+import { getGuildConfig } from "../config.js";
 
 export const data = new SlashCommandBuilder()
   .setName("inactive")
-  .setDescription("View inactive members (staff only)")
+  .setDescription("View inactive members and people on leave (staff only)")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand((sub) =>
-    sub.setName("list").setDescription("List all members who are inactive or flagged")
+    sub.setName("list").setDescription("List all inactive members AND members currently on leave")
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -24,52 +25,83 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true });
 
   const guildId = interaction.guildId;
-  const activities = await getAllGuildActivity(guildId);
+  const config = await getGuildConfig(guildId);
   const now = new Date();
 
-  const inactiveUsers: { userId: string; daysSince: number; onLeave: boolean; warned: boolean; alerted: boolean }[] = [];
+  const activities = await getAllGuildActivity(guildId);
+  const activeLeaves = await getAllActiveLeaves(guildId);
+
+  const onLeaveUserIds = new Set(activeLeaves.map((l) => l.userId));
+
+  const inactiveRows: { userId: string; minutesSince: number; warned: boolean; alerted: boolean }[] = [];
 
   for (const activity of activities) {
-    const daysSince = (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60);
-    if (daysSince < 1) continue;
+    if (onLeaveUserIds.has(activity.userId)) continue;
+    const minutesSince = (now.getTime() - activity.lastMessageAt.getTime()) / (1000 * 60);
+    if (minutesSince < config.inactivityDays) continue;
 
-    const activeLease = await getActiveLeaveForUser(guildId, activity.userId);
-
-    inactiveUsers.push({
+    inactiveRows.push({
       userId: activity.userId,
-      daysSince: Math.floor(daysSince),
-      onLeave: !!activeLease,
+      minutesSince: Math.floor(minutesSince),
       warned: !!activity.warningSentAt,
       alerted: !!activity.staffAlertSentAt,
     });
   }
 
-  inactiveUsers.sort((a, b) => b.daysSince - a.daysSince);
+  inactiveRows.sort((a, b) => b.minutesSince - a.minutesSince);
 
-  if (inactiveUsers.length === 0) {
-    await interaction.editReply({ content: "✅ No inactive members tracked yet." });
+  const hasInactive = inactiveRows.length > 0;
+  const hasLeaves = activeLeaves.length > 0;
+
+  if (!hasInactive && !hasLeaves) {
+    await interaction.editReply({ content: "✅ No inactive members or active leaves at the moment." });
     return;
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(0xf59e0b)
-    .setTitle(`🔍 Inactive Members (${inactiveUsers.length})`)
-    .setTimestamp();
+  const embeds: EmbedBuilder[] = [];
 
-  const lines = inactiveUsers.slice(0, 20).map((u) => {
-    const tags: string[] = [];
-    if (u.onLeave) tags.push("🏖️ On Leave");
-    if (u.alerted) tags.push("🚨 Staff Alerted");
-    else if (u.warned) tags.push("⚠️ Warned");
-    const tagStr = tags.length > 0 ? ` — ${tags.join(", ")}` : "";
-    return `<@${u.userId}> — **${u.daysSince}min inactive**${tagStr}`;
-  });
+  if (hasInactive) {
+    const inactiveEmbed = new EmbedBuilder()
+      .setColor(0xef4444)
+      .setTitle(`❌ Inactive Members (${inactiveRows.length})`)
+      .setTimestamp();
 
-  embed.setDescription(lines.join("\n"));
+    const lines = inactiveRows.slice(0, 20).map((u) => {
+      const tags: string[] = [];
+      if (u.alerted) tags.push("🚨 Staff Alerted");
+      else if (u.warned) tags.push("⚠️ Warned");
+      const tagStr = tags.length > 0 ? ` — ${tags.join(", ")}` : "";
+      return `<@${u.userId}> — **${u.minutesSince}min** inactive${tagStr}`;
+    });
 
-  if (inactiveUsers.length > 20) {
-    embed.setFooter({ text: `Showing 20 of ${inactiveUsers.length} members.` });
+    inactiveEmbed.setDescription(lines.join("\n"));
+
+    if (inactiveRows.length > 20) {
+      inactiveEmbed.setFooter({ text: `Showing 20 of ${inactiveRows.length} inactive members.` });
+    }
+
+    embeds.push(inactiveEmbed);
   }
 
-  await interaction.editReply({ embeds: [embed] });
+  if (hasLeaves) {
+    const leaveEmbed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`🏖️ Members On Leave (${activeLeaves.length})`)
+      .setTimestamp();
+
+    const leaveLines = activeLeaves.slice(0, 20).map((l) => {
+      const endTs = l.endDate ? `<t:${Math.floor(l.endDate.getTime() / 1000)}:R>` : "Unknown";
+      return `<@${l.userId}> — expires ${endTs} — *${l.reason}*`;
+    });
+
+    leaveEmbed.setDescription(leaveLines.join("\n"));
+
+    if (activeLeaves.length > 20) {
+      leaveEmbed.setFooter({ text: `Showing 20 of ${activeLeaves.length} leave entries.` });
+    }
+
+    embeds.push(leaveEmbed);
+  }
+
+  await interaction.editReply({ embeds });
 }
