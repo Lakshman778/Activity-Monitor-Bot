@@ -2,18 +2,12 @@
   "name": "activity-monitor-bot",
   "version": "1.0.0",
   "description": "Discord Activity Monitor Bot",
-  "main": "dist/index.js",
+  "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "dotenv": "^17.3.1",
     "node-cron": "^3.0.3"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.37",
-    "typescript": "^5.9.3"
   }
 }
