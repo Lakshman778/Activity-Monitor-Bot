@@ -104,5 +104,13 @@ async function registerCommands(clientId: string, token: string): Promise<void> 
     console.error("Failed to register slash commands:", err);
   }
 }
+// Render free tier compatibility - Discord bot + dummy HTTP server
+const PORT = process.env.PORT || 3000;
+require('http').createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Discord bot is running healthy! 👋');
+}).listen(PORT, '0.0.0.0', () => {
+  console.log(`🌐 HTTP server listening on port ${PORT}`);
+});
 
 client.login(token);
